@@ -181,14 +181,14 @@ async function getStoreSettings() {
 
   const { data: created } = await supabase.from('store_settings').insert({
     user_id,
-    store_name: 'Bazar Eletrônicos',
+    store_name: 'Mercado Sp',
     cnpj: '',
     phone: '',
     address: '',
     theme: 'dark'
   }).select().single()
 
-  return created || { store_name: 'Bazar Eletrônicos', cnpj: '', phone: '', address: '' }
+  return created || { store_name: 'Mercado Sp', cnpj: '', phone: '', address: '' }
 }
 
 
@@ -199,7 +199,7 @@ function gerarCupom80mm({ saleId, settings, items, subtotal, discount, addition,
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
-  doc.text(settings.store_name || 'Bazar Eletrônicos', 40, y, { align: 'center' })
+  doc.text(settings.store_name || 'Mercado Sp', 40, y, { align: 'center' })
   y += 5
 
   doc.setFont('helvetica', 'normal')
@@ -356,7 +356,7 @@ async function gerarReciboVendaPorId(saleId: string) {
   } else {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
-    doc.text(settings.store_name || 'Bazar Eletrônicos', 40, y, { align: 'center' })
+    doc.text(settings.store_name || 'Mercado Sp', 40, y, { align: 'center' })
     y += 5
   }
 
@@ -446,7 +446,7 @@ function Login() {
     <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 sm:p-6">
       <form onSubmit={signIn} className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900/80 p-5 sm:p-8 shadow-2xl">
         <div className="h-14 w-14 rounded-2xl bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-2xl">B</div>
-        <h1 className="mt-6 text-2xl sm:text-3xl font-bold">Bazar Eletrônicos</h1>
+        <h1 className="mt-6 text-2xl sm:text-3xl font-bold">Mercado Sp</h1>
         <p className="text-slate-400 mt-2">Cada login acessa sua própria loja.</p>
         <label className="label mt-8">E-mail</label>
         <input className="input" value={email} onChange={e => setEmail(e.target.value)} />
@@ -1398,7 +1398,7 @@ function ReportsPage() {
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(18)
-    doc.text(settings.store_name || 'Bazar Eletrônicos', 14, 13)
+    doc.text(settings.store_name || 'Mercado Sp', 14, 13)
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
     doc.text(`CNPJ: ${settings.cnpj || '-'}`, 14, 20)
@@ -1479,7 +1479,7 @@ function ReportsPage() {
     doc.setFontSize(8)
     doc.setTextColor(100)
     doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 287)
-    doc.text('Sistema ERP Bazar Eletrônicos', 140, 287)
+    doc.text('Sistema ERP Mercado Sp', 140, 287)
 
     doc.save(`Relatorio_${month}.pdf`)
   }
