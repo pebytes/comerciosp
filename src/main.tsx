@@ -181,14 +181,14 @@ async function getStoreSettings() {
 
   const { data: created } = await supabase.from('store_settings').insert({
     user_id,
-    store_name: 'Mercado Sp',
+    store_name: 'Bazar Eletrônicos',
     cnpj: '',
     phone: '',
     address: '',
     theme: 'dark'
   }).select().single()
 
-  return created || { store_name: 'Mercado Sp', cnpj: '', phone: '', address: '' }
+  return created || { store_name: 'Bazar Eletrônicos', cnpj: '', phone: '', address: '' }
 }
 
 
@@ -199,7 +199,7 @@ function gerarCupom80mm({ saleId, settings, items, subtotal, discount, addition,
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(11)
-  doc.text(settings.store_name || 'Mercado Sp', 40, y, { align: 'center' })
+  doc.text(settings.store_name || 'Bazar Eletrônicos', 40, y, { align: 'center' })
   y += 5
 
   doc.setFont('helvetica', 'normal')
@@ -356,7 +356,7 @@ async function gerarReciboVendaPorId(saleId: string) {
   } else {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
-    doc.text(settings.store_name || 'Mercado Sp', 40, y, { align: 'center' })
+    doc.text(settings.store_name || 'Bazar Eletrônicos', 40, y, { align: 'center' })
     y += 5
   }
 
@@ -446,7 +446,7 @@ function Login() {
     <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 sm:p-6">
       <form onSubmit={signIn} className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900/80 p-5 sm:p-8 shadow-2xl">
         <div className="h-14 w-14 rounded-2xl bg-emerald-500 flex items-center justify-center font-black text-slate-950 text-2xl">B</div>
-        <h1 className="mt-6 text-2xl sm:text-3xl font-bold">Mercado Sp</h1>
+        <h1 className="mt-6 text-2xl sm:text-3xl font-bold">Bazar Eletrônicos</h1>
         <p className="text-slate-400 mt-2">Cada login acessa sua própria loja.</p>
         <label className="label mt-8">E-mail</label>
         <input className="input" value={email} onChange={e => setEmail(e.target.value)} />
@@ -1398,7 +1398,7 @@ function ReportsPage() {
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(18)
-    doc.text(settings.store_name || 'Mercado Sp', 14, 13)
+    doc.text(settings.store_name || 'Bazar Eletrônicos', 14, 13)
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
     doc.text(`CNPJ: ${settings.cnpj || '-'}`, 14, 20)
@@ -1479,7 +1479,7 @@ function ReportsPage() {
     doc.setFontSize(8)
     doc.setTextColor(100)
     doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 287)
-    doc.text('Sistema ERP Mercado Sp', 140, 287)
+    doc.text('Sistema ERP Bazar Eletrônicos', 140, 287)
 
     doc.save(`Relatorio_${month}.pdf`)
   }
@@ -1647,6 +1647,10 @@ function PDVPage() {
   const [saleDiscount, setSaleDiscount] = useState('')
   const [addition, setAddition] = useState('')
   const [message, setMessage] = useState('')
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [quickForm, setQuickForm] = useState<Product>(emptyProduct)
+  const [quickMessage, setQuickMessage] = useState('')
+  const [quickSaving, setQuickSaving] = useState(false)
 
   async function load() {
     const user_id = await getUserId()
@@ -1685,6 +1689,82 @@ function PDVPage() {
 
   function updateItem(index: number, data: Partial<CartItem>) {
     setCart(c => c.map((item, i) => i === index ? { ...item, ...data } : item))
+  }
+
+  function openQuickAdd(term = '') {
+    const value = term.trim()
+    const digits = value.replace(/\s+/g, '')
+    const isNumeric = /^\d+$/.test(digits)
+    setQuickForm({
+      ...emptyProduct,
+      name: isNumeric ? '' : value,
+      // Código de barras (EAN) costuma ter 8 dígitos ou mais; códigos internos são curtos.
+      barcode: isNumeric && digits.length >= 8 ? digits : '',
+      product_code: isNumeric && digits.length < 8 ? digits : '',
+      is_active: true
+    })
+    setQuickMessage('')
+    setQuickSaving(false)
+    setQuickOpen(true)
+  }
+
+  async function saveQuickProduct(addToCart: boolean) {
+    if (quickSaving) return
+    const name = quickForm.name.trim()
+    if (!name) return setQuickMessage('Informe o nome do produto.')
+    const salePrice = Number(quickForm.sale_price || 0)
+    if (salePrice <= 0) return setQuickMessage('Informe o preço de venda.')
+
+    setQuickSaving(true)
+    const user_id = await getUserId()
+    const initialStock = Number(quickForm.stock || 0)
+
+    const { data, error } = await supabase.from('products').insert({
+      user_id,
+      name,
+      product_code: quickForm.product_code?.trim() || null,
+      barcode: quickForm.barcode?.trim() || null,
+      brand: quickForm.brand?.trim() || null,
+      cost_price: Number(quickForm.cost_price || 0),
+      sale_price: salePrice,
+      stock: initialStock,
+      min_stock: Number(quickForm.min_stock || 0),
+      is_active: true
+    }).select().single()
+
+    if (error || !data) {
+      setQuickSaving(false)
+      return setQuickMessage(error?.message || 'Erro ao cadastrar produto.')
+    }
+
+    if (initialStock !== 0) {
+      await supabase.from('stock_movements').insert({
+        user_id,
+        product_id: data.id,
+        movement_type: 'entrada_cadastro',
+        quantity: initialStock,
+        reason: 'Cadastro rápido pelo PDV'
+      })
+    }
+
+    const created = data as Product
+    setQuickSaving(false)
+    setQuickOpen(false)
+    setQuickForm(emptyProduct)
+    setQuickMessage('')
+    setQuery('')
+    await load()
+
+    if (addToCart) {
+      if (Number(created.stock) > 0) {
+        addProduct(created)
+        setMessage(`Produto "${created.name}" cadastrado e adicionado ao carrinho.`)
+      } else {
+        setMessage(`Produto "${created.name}" cadastrado, mas está sem estoque e não entrou no carrinho.`)
+      }
+    } else {
+      setMessage(`Produto "${created.name}" cadastrado. Estoque: ${initialStock}.`)
+    }
   }
 
   async function finishSale() {
@@ -1804,12 +1884,24 @@ function PDVPage() {
               const product = exact || (matches.length === 1 ? matches[0] : null)
               if (product) addProduct(product)
               else if (matches.length > 1) setMessage('Mais de um produto encontrado. Selecione o produto na lista.')
-              else setMessage('Produto não encontrado.')
+              else {
+                setMessage('Produto não encontrado. Cadastre abaixo sem sair do PDV.')
+                openQuickAdd(query)
+              }
             }}
           />
         </div>
+        <button className="btn2 mt-3 w-full" onClick={() => openQuickAdd(query)}>
+          <Package size={16} className="mr-2"/> Cadastrar produto
+        </button>
         <div className="mt-4 space-y-2">
           {filtered.map(p => <button key={p.id} onClick={() => addProduct(p)} className="mini w-full text-left hover:border-emerald-500"><div className="flex justify-between gap-3"><div><b>{p.name}</b><p className="text-xs text-slate-500">Cód: {p.product_code || '-'} • Qtd: {p.stock}</p></div><b>{money(p.sale_price)}</b></div></button>)}
+          {!filtered.length && query.trim() && (
+            <div className="mini space-y-3 text-center">
+              <p className="text-sm text-slate-300">Nenhum produto encontrado para <b>"{query.trim()}"</b>.</p>
+              <button className="btn w-full" onClick={() => openQuickAdd(query)}>Cadastrar "{query.trim()}"</button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -1838,6 +1930,114 @@ function PDVPage() {
         {message && <p className="mt-4 mini">{message}</p>}
       </section>
     </div>
+
+    {quickOpen && (
+      <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-3 sm:items-center">
+        <form
+          className="panel my-auto w-full max-w-2xl"
+          onSubmit={e => { e.preventDefault(); saveQuickProduct(false) }}
+        >
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h3 className="mb-1">Cadastrar produto</h3>
+              <p className="text-xs text-slate-400">Cadastro rápido sem sair do PDV.</p>
+            </div>
+            <button type="button" className="btn2 px-3" onClick={() => setQuickOpen(false)}><X size={16}/></button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="sm:col-span-2">
+              <span className="label">Nome *</span>
+              <input
+                className="input"
+                autoFocus
+                value={quickForm.name}
+                onChange={e => setQuickForm({ ...quickForm, name: e.target.value })}
+              />
+            </label>
+            <label>
+              <span className="label">Código interno</span>
+              <input
+                className="input"
+                placeholder="Ex.: 000123"
+                value={quickForm.product_code || ''}
+                onChange={e => setQuickForm({ ...quickForm, product_code: e.target.value })}
+              />
+            </label>
+            <label>
+              <span className="label">Código de barras (EAN)</span>
+              <input
+                className="input"
+                inputMode="numeric"
+                value={quickForm.barcode || ''}
+                onChange={e => setQuickForm({ ...quickForm, barcode: e.target.value })}
+              />
+            </label>
+            <label>
+              <span className="label">Preço de venda *</span>
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                min="0"
+                value={quickForm.sale_price}
+                onChange={e => setQuickForm({ ...quickForm, sale_price: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              <span className="label">Custo</span>
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                min="0"
+                value={quickForm.cost_price}
+                onChange={e => setQuickForm({ ...quickForm, cost_price: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              <span className="label">Estoque inicial</span>
+              <input
+                className="input"
+                type="number"
+                step="1"
+                value={quickForm.stock}
+                onChange={e => setQuickForm({ ...quickForm, stock: Number(e.target.value) })}
+              />
+            </label>
+            <label>
+              <span className="label">Estoque mínimo</span>
+              <input
+                className="input"
+                type="number"
+                step="1"
+                min="0"
+                value={quickForm.min_stock}
+                onChange={e => setQuickForm({ ...quickForm, min_stock: Number(e.target.value) })}
+              />
+            </label>
+            <label className="sm:col-span-2">
+              <span className="label">Marca</span>
+              <input
+                className="input"
+                value={quickForm.brand || ''}
+                onChange={e => setQuickForm({ ...quickForm, brand: e.target.value })}
+              />
+            </label>
+          </div>
+
+          {quickMessage && <p className="mt-3 mini border-red-500/40 text-red-300">{quickMessage}</p>}
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <button type="button" className="btn2" onClick={() => setQuickOpen(false)}>Cancelar</button>
+            <button type="submit" className="btn2" disabled={quickSaving}>Salvar</button>
+            <button type="button" className="btn" disabled={quickSaving} onClick={() => saveQuickProduct(true)}>
+              Salvar e adicionar
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
     </div>
   )
 }
